@@ -12,6 +12,20 @@ After this setup, Terraform and GitHub Actions will automatically create:
 - A Cloud Storage bucket for static assets
 - IAM with least-privilege access
 
+### 1.1 Architecture diagram
+
+```mermaid
+flowchart TB
+  user[User Browser] --> lb[HTTP Load Balancer]
+  lb --> mig[Managed Instance Group]
+  mig --> vm1[VM Instance]
+  mig --> vm2[VM Instance]
+  vm1 --> nat[Cloud NAT]
+  vm2 --> nat[Cloud NAT]
+  vm1 --> gcs[Cloud Storage]
+  vm2 --> gcs[Cloud Storage]
+```
+
 ## 2. Important terms (read first)
 
 - **project_id**: Your GCP project ID (example: `my-gcp-project-123`)
@@ -142,6 +156,17 @@ git commit -m "Trigger pipeline"
 git push origin main
 ```
 
+### 9.1 CI/CD flow diagram
+
+```mermaid
+flowchart LR
+  push[Push to main] --> fmt[Terraform fmt]
+  fmt --> validate[Terraform validate]
+  validate --> plan[Terraform plan]
+  plan --> approval[Manual approval]
+  approval --> apply[Terraform apply]
+```
+
 ## 10. Approve and deploy
 
 Go to **GitHub → Actions**.  
@@ -165,7 +190,54 @@ terraform output
 
 Open `load_balancer_url` in your browser.
 
-## 12. Troubleshooting (common issues)
+## 12. Test and validate (quick checks)
+
+Use these commands to confirm everything is working.
+
+### 12.1 Check Terraform state outputs
+
+```powershell
+cd "C:\Users\Jibbran\Documents\GCP Project\infra"
+terraform output
+```
+
+### 12.2 Check backend health (load balancer)
+
+```powershell
+gcloud compute backend-services get-health webapp-backend --global --project YOUR_GCP_PROJECT_ID
+```
+
+You should see `HEALTHY` for your instances.
+
+### 12.3 Check instances are running
+
+```powershell
+gcloud compute instances list --filter="name~webapp" --project YOUR_GCP_PROJECT_ID
+```
+
+### 12.4 Check firewall allows HTTP from LB
+
+```powershell
+gcloud compute firewall-rules list --filter="name~webapp-allow-http" --project YOUR_GCP_PROJECT_ID
+```
+
+### 12.5 Confirm forwarding rule IP
+
+```powershell
+gcloud compute forwarding-rules list --global --filter="name~webapp-forwarding-rule" --project YOUR_GCP_PROJECT_ID
+```
+
+Make sure the IP shown matches `load_balancer_ip`.
+
+### 12.6 Test the URL from your machine
+
+```powershell
+curl http://YOUR_LOAD_BALANCER_IP
+```
+
+You should get an HTML response.
+
+## 13. Troubleshooting (common issues)
 
 **Terraform: “terraform is not recognized”**  
 - Reopen PowerShell or reinstall Terraform and add to PATH.
@@ -179,7 +251,12 @@ Open `load_balancer_url` in your browser.
 **GitHub Actions authentication failed**  
 - Check secrets: `WIF_PROVIDER`, `TF_SA_EMAIL`, `TF_STATE_BUCKET`.
 
-## 13. Clean up (to avoid costs)
+**Load balancer not accessible**  
+- Wait 5–10 minutes after apply.  
+- Check backend health (section 12.2).  
+- Confirm forwarding rule IP (section 12.5).  
+
+## 14. Clean up (to avoid costs)
 
 ```powershell
 cd "C:\Users\Jibbran\Documents\GCP Project\infra"
