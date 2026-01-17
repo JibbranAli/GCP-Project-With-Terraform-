@@ -1,8 +1,8 @@
 resource "google_compute_health_check" "web" {
-  name               = "${local.name_prefix}-hc"
-  check_interval_sec = 5
-  timeout_sec        = 5
-  healthy_threshold  = 2
+  name                = "${local.name_prefix}-hc"
+  check_interval_sec  = 5
+  timeout_sec         = 5
+  healthy_threshold   = 2
   unhealthy_threshold = 2
 
   http_health_check {

@@ -1,7 +1,7 @@
 locals {
-  name_prefix       = var.name_prefix != "" ? var.name_prefix : "webapp"
-  lb_source_ranges  = ["130.211.0.0/22", "35.191.0.0/16"]
-  startup_script = <<-EOT
+  name_prefix      = var.name_prefix != "" ? var.name_prefix : "webapp"
+  lb_source_ranges = ["130.211.0.0/22", "35.191.0.0/16"]
+  startup_script   = <<-EOT
     #!/bin/bash
     set -e
     apt-get update -y
