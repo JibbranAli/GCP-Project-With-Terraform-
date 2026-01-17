@@ -1,16 +1,26 @@
-# Step-by-Step Guide: GCP + Terraform + GitHub Actions (Beginner Friendly)
+# GCP Terraform + GitHub Actions Setup Manual (Beginner Friendly)
 
-This guide walks you through everything from zero to a fully automated GCP infrastructure deployment. No GCP Console clicking required after the one-time bootstrap.
+This manual walks you through a complete, end-to-end setup of the GCP infrastructure automation project. It is written for beginners and explains what each step does and why it is needed.
 
-## What you will build
+## 1. What this project builds
 
-- A custom VPC network
-- Private VM instances behind a Load Balancer
+After this setup, Terraform and GitHub Actions will automatically create:
+- A custom VPC and subnet
+- Private VM instances (Managed Instance Group)
 - Cloud NAT for outbound access
-- A Cloud Storage bucket for assets
-- Secure CI/CD with GitHub Actions and manual approval
+- A global HTTP Load Balancer
+- A Cloud Storage bucket for static assets
+- IAM with least-privilege access
 
-## Prerequisites (install once)
+## 2. Important terms (read first)
+
+- **project_id**: Your GCP project ID (example: `my-gcp-project-123`)
+- **github_owner**: Your GitHub username or org name (example: `JibbranAli`)
+- **github_repo**: The repo name only (example: `GCP-Project-With-Terraform-`)
+
+You will replace placeholders like `YOUR_GCP_PROJECT_ID` with your real values.
+
+## 3. Prerequisites (install once)
 
 1. **Git**  
    Download: https://git-scm.com/downloads
@@ -21,33 +31,34 @@ This guide walks you through everything from zero to a fully automated GCP infra
    ```powershell
    terraform -version
    ```
-   If you see a version number, Terraform is installed correctly.
-  If you get “terraform is not recognized”, close PowerShell and open it again.  
-  If it still fails, reinstall Terraform and ensure it was added to your PATH.
+   If you see a version number, Terraform is installed correctly.  
+   If you get “terraform is not recognized”, reopen PowerShell. If it still fails, reinstall and ensure it is added to PATH.
 
 3. **Google Cloud SDK (`gcloud`)**  
-   Download: https://cloud.google.com/sdk/docs/install
+   Download: https://cloud.google.com/sdk/docs/install  
+   After installing, open a NEW PowerShell and run:
+   ```powershell
+   gcloud --version
+   ```
 
-4. **A GCP project with billing enabled**
+4. **A GCP project with billing enabled**  
+   Billing must be ON to enable Compute Engine.
 
-5. **A GitHub repo** that contains this project
+5. **A GitHub repo** that contains this project  
+   GitHub Actions runs from your repo.
 
-## Before you start (important terms)
+## 4. Create a GitHub repo and push this project
 
-- **project_id**: Your GCP project ID (example: `my-gcp-project-123`)
-- **github_owner**: Your GitHub username or org name
-- **github_repo**: The repository name on GitHub
+You must push the code to GitHub so Actions can run.
 
-You will replace placeholders like `YOUR_GCP_PROJECT_ID` with your real values.
+### 4.1 Create a new repo on GitHub
 
-## 0) Create a GitHub repo and push this project
+Create an empty repo (no README). Note the URL:
+```
+https://github.com/YOUR_GITHUB_OR_ORG/YOUR_REPO_NAME.git
+```
 
-Yes — you should push the code to GitHub first so GitHub Actions can run.
-
-### Option A: Use an existing repo (recommended)
-
-1. Create a new empty repo on GitHub (no README).
-2. In PowerShell, run:
+### 4.2 Push this project to GitHub
 
 ```powershell
 cd "C:\Users\Jibbran\Documents\GCP Project"
@@ -59,46 +70,29 @@ git remote add origin https://github.com/YOUR_GITHUB_OR_ORG/YOUR_REPO_NAME.git
 git push -u origin main
 ```
 
-### Option B: If you already have a repo
-
-Just make sure this project is pushed to your `main` branch.
-
-## 1) Open PowerShell in the project folder
-
-```powershell
-cd "C:\Users\Jibbran\Documents\GCP Project"
-```
-
-## 2) Login to Google Cloud
+## 5. Login to Google Cloud
 
 ```powershell
 gcloud auth login
 gcloud auth application-default login
 ```
 
-Check that `gcloud` works:
-
-```powershell
-gcloud --version
-```
-
-Make sure your active project is correct:
-
+Set your active project:
 ```powershell
 gcloud config set project YOUR_GCP_PROJECT_ID
 ```
 
-## 3) Bootstrap (one-time setup)
+## 6. Bootstrap (one-time setup)
 
-This creates:
-- A secure Terraform state bucket
-- A GitHub OIDC identity
+Bootstrap creates:
+- A secure Terraform state bucket (GCS)
+- GitHub Workload Identity (OIDC)
 - A CI service account with least privilege
 
-Run (replace the placeholders):
+Run from the bootstrap folder:
 
 ```powershell
-cd .\bootstrap
+cd "C:\Users\Jibbran\Documents\GCP Project\bootstrap"
 terraform init
 terraform apply `
   -var="project_id=YOUR_GCP_PROJECT_ID" `
@@ -106,103 +100,93 @@ terraform apply `
   -var="github_repo=YOUR_REPO_NAME"
 ```
 
-Note: The backtick (`) is PowerShell’s line continuation. You can also run it as one line if you want.
+Note: The backtick (`) is PowerShell’s line continuation. You can also run it as one line.
 
-When it finishes, **copy these outputs**:
+### 6.1 Save the outputs
+
+After apply, run:
+```powershell
+terraform output
+```
+
+Copy and keep these three values:
 - `state_bucket_name`
 - `workload_identity_provider`
 - `ci_service_account_email`
 
-## 4) Add GitHub Secrets
+## 7. Add GitHub secrets
 
-Go to your GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**
+In your GitHub repo:
+**Settings → Secrets and variables → Actions → New repository secret**
 
 Add:
-
 - `GCP_PROJECT_ID` = your GCP project id  
 - `TF_STATE_BUCKET` = output `state_bucket_name`  
 - `WIF_PROVIDER` = output `workload_identity_provider`  
 - `TF_SA_EMAIL` = output `ci_service_account_email`
 
-## 5) Create a GitHub Environment (manual approval)
+## 8. Create a GitHub Environment (manual approval)
 
-Go to GitHub repo → **Settings → Environments**  
-Create an environment named: **production**
+Go to: **Settings → Environments**  
+Create an environment named: **production**  
+Add required reviewers so the pipeline pauses for approval before apply.
 
-Add required reviewers so the pipeline stops for approval before apply.
+## 9. Trigger the CI/CD pipeline
 
-## 6) First Terraform init locally (optional check)
-
-```powershell
-cd ..\infra
-terraform init -backend-config="bucket=YOUR_STATE_BUCKET" -backend-config="prefix=infra/state"
-terraform plan -var="project_id=YOUR_GCP_PROJECT_ID"
-```
-
-## 7) Push to GitHub to trigger CI/CD
-
-If you already pushed earlier, make any small change (like editing this file) and push again to trigger the pipeline.
+Push a change to `main`:
 
 ```powershell
-cd ..
+cd "C:\Users\Jibbran\Documents\GCP Project"
 git add .
-git commit -m "Add GCP infra automation"
+git commit -m "Trigger pipeline"
 git push origin main
 ```
 
-## 8) Watch the pipeline
+## 10. Approve and deploy
 
-Go to GitHub → **Actions**
-
+Go to **GitHub → Actions**.  
 You will see:
-1. **Terraform fmt**
-2. **Terraform validate**
-3. **Terraform plan**
-4. **Manual approval**
-5. **Terraform apply**
+1. Terraform fmt  
+2. Terraform validate  
+3. Terraform plan  
+4. Manual approval  
+5. Terraform apply
 
-Approve when prompted to deploy.
+Approve when prompted.
 
-## 9) Get your Load Balancer URL
+## 11. Get your Load Balancer URL
 
-After apply, check Terraform outputs:
+After apply, check outputs:
 
 ```powershell
-cd .\infra
+cd "C:\Users\Jibbran\Documents\GCP Project\infra"
 terraform output
 ```
 
-Look for:
-- `load_balancer_url`
-- `load_balancer_ip`
+Open `load_balancer_url` in your browser.
 
-Open the URL in your browser. You should see a basic NGINX page.
+## 12. Troubleshooting (common issues)
 
-## Tips to avoid costs
+**Terraform: “terraform is not recognized”**  
+- Reopen PowerShell or reinstall Terraform and add to PATH.
 
-- Default VM size is `e2-micro`
-- Only 2 small instances are created
-- You can destroy all resources with:
+**Billing error (Compute Engine won’t enable)**  
+- Link a billing account to your project, then rerun `terraform apply`.
+
+**Permission denied**  
+- Make sure you are logged in with the correct Google account.
+
+**GitHub Actions authentication failed**  
+- Check secrets: `WIF_PROVIDER`, `TF_SA_EMAIL`, `TF_STATE_BUCKET`.
+
+## 13. Clean up (to avoid costs)
 
 ```powershell
-cd .\infra
+cd "C:\Users\Jibbran\Documents\GCP Project\infra"
 terraform destroy -var="project_id=YOUR_GCP_PROJECT_ID"
 ```
 
-## Common problems
-
-**Pipeline fails to authenticate**
-- Check that GitHub secrets are correct
-- Confirm Workload Identity provider output is correct
-
-**No traffic on Load Balancer**
-- Wait 2–5 minutes for health checks
-- Check if instances are healthy in Terraform output
-
-**Terraform init fails**
-- Ensure state bucket exists (run bootstrap again)
-
 ---
 
-You now have a full DevOps-style automation pipeline and infrastructure on GCP. If you want, I can add HTTPS, custom domain, autoscaling, or logging/monitoring dashboards.
+You now have a full DevOps-style automation pipeline on GCP. If you want HTTPS, custom domain, or autoscaling, I can add that next.
 
