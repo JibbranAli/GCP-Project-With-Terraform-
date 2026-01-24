@@ -46,3 +46,4 @@ resource "google_compute_global_forwarding_rule" "web" {
   load_balancing_scheme = "EXTERNAL"
 }
 
+

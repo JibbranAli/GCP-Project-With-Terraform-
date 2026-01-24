@@ -72,3 +72,4 @@ resource "google_compute_instance_group_manager" "web" {
   }
 }
 
+
